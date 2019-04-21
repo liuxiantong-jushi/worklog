@@ -161,6 +161,9 @@ An injector can be distributed across multiple processes, such that the aggregat
 ## 6. FAULT TOLERANCE 6.1 Delivery Guarantees
 Much of the conceptual simplicity of MillWheel’s programming model hinges upon its ability to take non-idempotent user code and run it as if it were idempotent. By removing this requirement from computation authors, we relieve them of a significant implementa- tion burden. 
 
+## 6.1 Delivery Guarantees
+Much of the conceptual simplicity of MillWheel’s programming model hinges upon its ability to take non-idempotent user code and run it as if it were idempotent. By removing this requirement from computation authors, we relieve them of a significant implementa- tion burden.  
+
 ## 6.1.1 Exactly-Once Delivery
 Upon receipt of an input record for a computation, the MillWheel framework performs the following steps:
 
