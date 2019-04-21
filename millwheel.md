@@ -1,4 +1,4 @@
-#MillWheel: Fault-Tolerant Stream Processing at Internet Scale 
+# MillWheel: Fault-Tolerant Stream Processing at Internet Scale    
 
 
 ## ABSTRACT  
@@ -7,7 +7,7 @@ MillWheel is a framework for building low-latency data-processing applications t
 This paper describes MillWheel’s programming model as well as its implementation. The case study of a continuous anomaly detec- tor in use at Google serves to motivate how many of MillWheel’s features are used. MillWheel’s programming model provides a no- tion of logical time, making it simple to write time-based aggre- gations. MillWheel was designed from the outset with fault toler- ance and scalability in mind. In practice, we find that MillWheel’s unique combination of scalability, fault tolerance, and a versatile programming model lends itself to a wide variety of problems at Google.  
   
   
-##1. INTRODUCTION   
+## 1. INTRODUCTION   
 Stream processing systems are critical to providing content to users and allowing organizations to make faster and better deci- sions, particularly because of their ability to provide low latency results. Users want real-time news about the world around them. Businesses are likewise interested in the value provided by real- time intelligence sources such as spam filtering and intrusion de- tection. Similarly, scientists must cull noteworthy results from im-mense streams of raw data.  
   
 Streaming systems at Google require fault tolerance, persistent state, and scalability. Distributed systems run on thousands of shared machines, any of which can fail at any time. Model-based stream- ing systems, like anomaly detectors, depend on predictions that are generated from weeks of data, and their models must be updated on-the-fly as new data arrives. Scaling these systems by orders of magnitude should not cause a commensurate increase in the opera- tional cost of building and maintaining the system.
@@ -26,7 +26,7 @@ Our contributions are a programming model for streaming sys- tems and an impleme
 The rest of this paper is organized as follows. Section 2 outlines a motivating example for the development of MillWheel, and the corresponding requirements that it imposes. Section 3 provides a high-level overview of the system. Section 4 defines the fundamen- tal abstractions of the MillWheel model and Section 5 discusses the API that MillWheel exposes. Section 6 outlines the implemen- tation of fault tolerance in MillWheel, and Section 7 covers the general implementation. Section 8 provides experimental results to illustrate the performance of MillWheel, and Section 9 discusses related work.
 
 
-##2.MOTIVATION AND REQUIREMENTS
+## 2.MOTIVATION AND REQUIREMENTS
 Google’s Zeitgeist pipeline is used to track trends in web queries. To demonstrate the utility of MillWheel’s feature set, we will exam- ine the requirements of the Zeitgeist system. This pipeline ingests a continuous input of search queries and performs anomaly detec- tion, outputting queries which are spiking or dipping as quickly as possible. The system builds a historical model of each query, so that expected changes in traffic (e.g. for “television listings” in the early evening) will not cause false positives. It is important that spiking or dipping queries be identified as quickly as possible. For example, Zeitgeist helps power Google’s Hot Trends service, which depends on fresh information. The basic topology of this pipeline is shown in Figure 1.  
   
 In order to implement the Zeitgeist system, our approach is to bucket records into one-second intervals and to compare the ac- tual traffic for each time bucket to the expected traffic that the model predicts. If these quantities are consistently different over a non-trivial number of buckets, then we have high confidence that a query is spiking or dipping. In parallel, we update the model with the newly received data and store it for future use.  
@@ -49,7 +49,7 @@ should be computed by the system.
 ![Figure 1: Input data (search queries) goes through a series of MillWheel computations, shown as distributed processes. The output of the system is consumed by an external anomaly notification system.](https://img-blog.csdn.net/20131028154227187?watermark/2/text/aHR0cDovL2Jsb2cuY3Nkbi5uZXQvY29sb3JhbnQ=/font/5a6L5L2T/fontsize/400/fill/I0JBQkFCMA==/dissolve/70/gravity/SouthEast)
    
 
-##3. SYSTEM OVERVIEW
+## 3. SYSTEM OVERVIEW
 At a high level, MillWheel is a graph of user-defined transfor- mations on input data that produces output data. We call these transformations computations, and define them more extensively below. Each of these transformations can be parallelized across an arbitrary number of machines, such that the user does not have to concern themselves with load-balancing at a fine-grained level. In the case of Zeitgeist, shown in Figure 1, our input would be a con- tinuously arriving set of search queries, and our output would be the set of queries that are spiking or dipping.  
 
 Abstractly, inputs and outputs in MillWheel are represented by (key, value, timestamp) triples. While the key is a metadata field with semantic meaning in the system, the value can be an arbi- trary byte string, corresponding to the entire record. The context in which user code runs is scoped to a specific key, and each com- putation can define the keying for each input source, depending on its logical needs. For example, certain computations in Zeit- geist would likely select the search term (e.g. “cat videos”) as the key, in order to compute statistics on a per-query basis, while other computations might select geographic origin as the key, in order to aggregate on a per-locale basis. The timestamps in these triples can be assigned an arbitrary value by the MillWheel user (but they are typically close to wall clock time when the event occurred), and MillWheel will calculate low watermarks according to these val- ues. If a user were aggregating per-second counts of search terms (as in Zeitgeist, illustrated in Figure 2), then they would want to assign a timestamp value corresponding to the time at which the search was performed.  
@@ -64,7 +64,7 @@ MillWheel makes record processing idempotent with regard to the framework API. A
 With this high-level concept of the system in mind, we will ex- pand upon the individual abstractions that make up MillWheel in the next section.  
 
 
-##4. CORE CONCEPTS
+## 4. CORE CONCEPTS
 MillWheel surfaces the essential elements of a streaming system, while providing clean abstractions. Data traverses our system via a user-defined, directed graph of computations (Figure 3), each of which can manipulate and emit data independently.  
 
 `	
@@ -97,21 +97,21 @@ computation
 	}
 `
 
-##4.1 Computations
+## 4.1 Computations
 Application logic lives in computations, which encapsulate arbi- trary user code. Computation code is invoked upon receipt of input data, at which point user-defined actions are triggered, including contacting external systems, manipulating other MillWheel prim- itives, or outputting data. If external systems are contacted, it is up to the user to ensure that the effects of their code on these sys- tems is idempotent. Computation code is written to operate in the context of a single key, and is agnostic to the distribution of keys among different machines. As illustrated in Figure 4, processing is serialized per-key, but can be parallelized over distinct keys.  
 
-##4.2 Keys
+## 4.2 Keys
 Keys are the primary abstraction for aggregation and comparison between different records in MillWheel. For every record in the system, the consumer specifies a key extraction function, which as- signs a key to the record. Computation code is run in the context of a specific key and is only granted access to state for that specific key. For example, in the Zeitgeist system, a good choice of key for query records would be the text of the query itself, since we need to aggregate counts and compute models on a per-query basis. Al- ternately, a spam detector might choose a cookie fingerprint as a key, in order to block abusive behavior. Figure 5 shows different consumers extracting different keys from the same input stream.  
 
 ![](https://img-blog.csdn.net/20131028154302703?watermark/2/text/aHR0cDovL2Jsb2cuY3Nkbi5uZXQvY29sb3JhbnQ=/font/5a6L5L2T/fontsize/400/fill/I0JBQkFCMA==/dissolve/70/gravity/SouthEast)
 
-##4.3 Streams
+## 4.3 Streams
 Streams are the delivery mechanism between different compu- tations in MillWheel. A computation subscribes to zero or more input streams and publishes one or more output streams, and the system guarantees delivery along these channels. Key-extraction functions are specified by each consumer on a per-stream basis, such that multiple consumers can subscribe to the same stream and aggregate its data in different ways. Streams are uniquely identified by their names, with no other qualifications – any computation can subscribe to any stream, and can produce records (productions) to any stream.  
 
-##4.4 Persistent State
+## 4.4 Persistent State
 In its most basic form, persistent state in MillWheel is an opaque byte string that is managed on a per-key basis. The user provides serialization and deserialization routines (such as translating a rich data structure in and out of its wire format), for which a variety of convenient mechanisms (e.g. Protocol Buffers [13]) exist. Per- sistent state is backed by a replicated, highly available data store (e.g. Bigtable [7] or Spanner [9]), which ensures data integrity in a way that is completely transparent to the end user. Common uses of state include counters aggregated over windows of records and buffered data for a join. 
 
-##4.5 Low Watermarks
+## 4.5 Low Watermarks
 The low watermark for a computation provides a bound on the timestamps of future records arriving at that computation.
 Definition: We provide a recursive definition of low watermarks based on a pipeline’s data flow. Given a computation, A, let the oldest work of A be a timestamp corresponding to the oldest un- finished (in-flight, stored, or pending-delivery) record in A. Given this, we define the low watermark of A to be
 min(oldest work of A, low watermark of C : C outputs to A)
@@ -124,12 +124,12 @@ By waiting for the low watermark of a computation to advance past a certain valu
 
 ![](https://img-blog.csdn.net/20131028154319671?watermark/2/text/aHR0cDovL2Jsb2cuY3Nkbi5uZXQvY29sb3JhbnQ=/font/5a6L5L2T/fontsize/400/fill/I0JBQkFCMA==/dissolve/70/gravity/SouthEast)  
 
-##4.6 Timers
+## 4.6 Timers
 Timers are per-key programmatic hooks that trigger at a specific wall time or low watermark value. Timers are created and run in the context of a computation, and accordingly can run arbitrary code. The decision to use a wall time or low watermark value is dependent on the application – a heuristic monitoring system that  wants to push hourly emails (on the hour, regardless of whether data was delayed) might use wall time timers, while an analytics system performing windowed aggregates could use low watermark timers. Once set, timers are guaranteed to fire in increasing times- tamp order. They are journaled in persistent state and can survive process restarts and machine failures. When a timer fires, it runs the specified user function and has the same exactly-once guaran- tee as input records. A simple implementation of dips in Zeitgeist would set a low watermark timer for the end of a given time bucket, and report a dip if the observed traffic falls well below the model’s prediction.   
 
 The use of timers is optional – applications that do not have the need for time-based barrier semantics can skip them. For example, Zeitgeist can detect spiking queries without timers, since a spike may be evident even without a complete picture of the data. If the observed traffic already exceeds the model’s prediction, delayed data would only add to the total and increase the magnitude of the spike.
 
-##5.API
+## 5.API
 In this section, we give an overview of our API as it relates to the abstractions in Section 4. Users implement a custom subclass of the Computation class, shown in Figure 7, which provides meth- ods for accessing all of the MillWheel abstractions (state, timers, and productions). Once provided by the user, this code is then run automatically by the framework. Per-key serialization is handled at the framework level, and users do not need to construct any per-key locking semantics.
 
 ```
@@ -147,21 +147,21 @@ In this section, we give an overview of our API as it relates to the abstraction
   
   
 
-##5.1 Computation API
+## 5.1 Computation API
 The two main entry points into user code are provided by the Pro- cessRecord and ProcessTimer hooks, depicted in Figure 8, which are triggered in reaction to record receipt and timer expiration, re- spectively. Collectively, these constitute the application logic of a computation.
 Within the execution of these hooks, MillWheel provides system functions to fetch and manipulate per-key state, produce additional records, and set timers. Figure 9 illustrates the interaction between these mechanisms. It draws upon our Zeitgeist system to show the use of persistent state and timers in detecting dips in the query stream. Again, note the absence of failure-recovery logic, which is all handled automatically by the framework.  
 
-##5.2 Injector and Low Watermark API
+## 5.2 Injector and Low Watermark API
 At the system layer, each computation calculates a low water- mark value for all of its pending work (in-progress and queued de- liveries). Persistent state can also be assigned a timestamp value (e.g. the trailing edge of an aggregation window). This is rolled up automatically by the system in order to provide API semantics for timers in a transparent way – users rarely interact with low water- marks in computation code, but rather manipulate them indirectly through timestamp assignation to records.  
 
 Injectors: Injectors bring external data into MillWheel. Since in- jectors seed low watermark values for the rest of the pipeline, they are able to publish an injector low watermark that propagates to any subscribers among their output streams, reflecting their poten- tial deliveries along those streams. For example, if an injector were ingesting log files, it could publish a low watermark value that cor- responded to the minimum file creation time among its unfinished files, as shown in Figure 10.  
 
 An injector can be distributed across multiple processes, such that the aggregate low watermark of those processes is used as the injector low watermark. The user can specify an expected set of in- jector processes, making this metric robust against process failures and network outages. In practice, library implementations exist for common input types at Google (log files, pubsub service feeds, etc.), such that normal users do not need to write their own injec- tors. If an injector violates the low watermark semantics and sends a late record behind the low watermark, the user’s application code chooses whether to discard the record or incorporate it into an up- date of an existing aggregate.
 
-##6. FAULT TOLERANCE 6.1 Delivery Guarantees
+## 6. FAULT TOLERANCE 6.1 Delivery Guarantees
 Much of the conceptual simplicity of MillWheel’s programming model hinges upon its ability to take non-idempotent user code and run it as if it were idempotent. By removing this requirement from computation authors, we relieve them of a significant implementa- tion burden. 
 
-##6.1.1 Exactly-Once Delivery
+## 6.1.1 Exactly-Once Delivery
 Upon receipt of an input record for a computation, the MillWheel framework performs the following steps:
 
 ```
@@ -234,7 +234,7 @@ void OnFileEvent() {
 }
 ```
 
-##6.1.2 Strong Productions
+## 6.1.2 Strong Productions
 Since MillWheel handles inputs that are not necessarily ordered or deterministic, we checkpoint produced records before delivery in the same atomic write as state modification. We call this pat- tern of checkpointing before record production strong productions. Take the example of a computation that aggregates by wall time, that is emitting counts downstream. Without a checkpoint, it would be possible for that computation to produce a window count down- stream, but crash before saving its state. Once the computation came back up, it might receive another record (and add it to the count) before producing the same aggregate, creating a record that was bit-wise distinct from its predecessor but corresponded to the same logical window! In order to handle this case correctly, the downstream consumer would need complex conflict resolution logic. With MillWheel, however, the simple solution just works, because the user’s application logic has been made into an idempotent op- eration by the system guarantees.  
 
 We use a storage system such as Bigtable [7], which efficiently implements blind writes (as opposed to read-modify-write opera- tions), making checkpoints mimic the behavior of a log. When a process restarts, the checkpoints are scanned into memory and replayed. Checkpoint data is deleted once these productions are successful.  
@@ -249,7 +249,7 @@ In Figure 11, we show this checkpointing mechanism in action. Computation A prod
 The above relaxations would be appropriate in the case of a pipeline with idempotent computations, since retries would not af- fect correctness, and downstream productions would also be retry- agnostic. A real-world example of an idempotent computation is a stateless filter, where repeated deliveries along input streams will not change the result.  
 
 
-##6.2 State Manipulation
+##  6.2 State Manipulation
 In implementing mechanisms to manipulate user state in Mill- Wheel, we discuss both the “hard” state that is persisted to our backing store and the “soft” state which includes any in-memory caches or aggregates. We must satisfy the following user-visible guarantees:  
 - The system does not lose data.  
 - Updates to state must obey exactly-once semantics.  
@@ -267,8 +267,8 @@ Furthermore, this same situation could occur with a checkpointed production, whe
 
 In order to quickly recover from unplanned process failures, each computation worker in MillWheel can checkpoint its state at an arbitrarily fine granularity (in practice, sub-second or per-record granularity is standard, depending on input volume). Our use of always-consistent soft state allows us to minimize the number of occasions when we must scan these checkpoints to specific cases – machine failures or load-balancing events. When we do perform scans, these can often be asynchronous, allowing the computation to continue processing input records while the scan progresses.  
 
-##7. SYSTEM IMPLEMENTATION 
-##7.1 Architecture
+## 7. SYSTEM IMPLEMENTATION 
+## 7.1 Architecture
 MillWheel deployments run as distributed systems on a dynamic set of host servers. Each computation in a pipeline runs on one or more machines, and streams are delivered via RPC. On each ma- chine, the MillWheel system marshals incoming work and manages process-level metadata, delegating to the appropriate user compu- tation as necessary.  
 
 Load distribution and balancing is handled by a replicated mas- ter, which divides each computation into a set of owned lexico- graphic key intervals (collectively covering all key possibilities) and assigns these intervals to a set of machines. In response to in- creased CPU load or memory pressure (reported by a standard per- process monitor), it can move these intervals around, split them, or merge them. Each interval is assigned a unique sequencer, which is invalidated whenever the interval is moved, split, or merged. The importance of this sequencer was discussed in Section 6.2.
@@ -276,7 +276,7 @@ For persistent state, MillWheel uses a database like Bigtable [7] or Spanner [9]
 
 MillWheel recovers from machine failures efficiently by scan- ning metadata from this backing store whenever a key interval is assigned to a new owner. This initial scan populates in-memory structures like the heap of pending timers and the queue of check- pointed productions, which are then assumed to be consistent with the backing store for the lifetime of the interval assignment. To support this assumption, we enforce single-writer semantics (per computation worker) that are detailed in Section 6.2.
 
-##7.2 Low Watermarks
+## 7.2 Low Watermarks
 In order to ensure data consistency, low watermarks must be im- plemented as a sub-system that is globally available and correct. We have implemented this as a central authority (similar to OOP [19]), which tracks all low watermark values in the system and jour- nals them to persistent state, preventing the reporting of erroneous values in cases of process failure.  
 
 When reporting to the central authority, each process aggregates timestamp information for all of its owned work. This includes any checkpointed or pending productions, as well as any pending timers or persisted state. Each process is able to do this efficiently by de- pending on the consistency of our in-memory data structures, elim- inating the need to perform any expensive queries over the backing data store. Since processes are assigned work based on key inter- vals, low watermark updates are also bucketed into key intervals, and sent to the central authority.  
@@ -291,10 +291,10 @@ Given a global summary of work in the system, we are able to optionally strip aw
 
 In summary, our implementation of low watermarks does not re- quire any sort of strict time ordering on streams in the system. Low watermarks reflect both in-flight and persisted state. By establish- ing a global source of truth for low watermark values, we prevent logical inconsistencies, like low watermarks moving backwards.
 
-##8. EVALUATION
+## 8. EVALUATION
 To illustrate the performance of MillWheel, we provide exper- imental results that are tailored towards key metrics of stream- processing systems.
 
-##8.1 Output Latency
+## 8.1 Output Latency
 A critical metric for the performance of streaming systems is latency. The MillWheel framework supports low latency results, and it keeps latency low as the distributed system scales to more machines. To demonstrate the performance of MillWheel, we mea- sured record-delivery latency using a simple, single-stage MillWheel pipeline that buckets and sorts numbers. This resembles the many- to-many shuffle that occurs between successive computations that are keyed differently, and thus is a worst case of sorts for record delivery in MillWheel. Figure 13 shows the latency distribution for records when running over 200 CPUs. Median record delay is 3.6 milliseconds and 95th-percentile latency is 30 milliseconds, which easily fulfills the requirements for many streaming systems at Google (even 95th percentile is within human reaction time).  
 
 This test was performed with strong productions and exactly- once disabled. With both of these features enabled, median latency jumps up to 33.7 milliseconds and 95th-percentile latency to 93.8 milliseconds. This is a succinct demonstration of how idempotent computations can decrease their latency by disabling these two fea- tures.
@@ -307,13 +307,13 @@ To verify that MillWheel’s latency profile scales well with the system’s res
 
 ![](https://upload-images.jianshu.io/upload_images/8100155-968fcf764c0ed552.jpg?imageMogr2/auto-orient/strip%7CimageView2/2/w/720)
 
-##8.2 Watermark Lag
+## 8.2 Watermark Lag
 While some computations (like spike detection in Zeitgeist) do not need timers, many computations (like dip detection) use timers to wait for the low watermark to advance before outputting aggre- gates. For these computations, the low watermark’s lag behind real time bounds the freshness of these aggregates. Since the low wa- termark propagates from injectors through the computation graph, we expect the lag of a computation’s low watermark to be propor- tional to its maximum pipeline distance from an injector. We ran a simple three-stage MillWheel pipeline on 200 CPUs, and polled each computation’s low watermark value once per second. In Fig- ure 15, we can see that the first stage’s watermark lagged real time by 1.8 seconds, however, for subsequent stages, the lag increased per stage by less than 200ms. Reducing watermark lag is an active area of development.
 
-##8.3 Framework-Level Caching
+## 8.3 Framework-Level Caching
 Due to its high rate of checkpointing, MillWheel generates sig- nificant amounts of traffic to the storage layer. When using a stor- age system such as Bigtable, reads incur a higher cost than writes, and MillWheel alleviates this with a framework-level cache. A common use case for MillWheel is to buffer data in storage until the low watermark has passed a window boundary and then to fetch the data for aggregation. This usage pattern is hostile to the LRU caches commonly found in storage systems, as the most recently modified row is the one least likely to be fetched soon. MillWheel knows how this data is likely to be used and can provide a bet- ter cache-eviction policy. In Figure 16 we measure the combined CPU usage of the MillWheel workers and the storage layer, relative to maximum cache size (for corporate-secrecy reasons, CPU usage has been normalized). Increasing available cache linearly improves CPU usage (after 550MB most data is cached, so further increases were not helpful). In this experiment, MillWheel’s cache was able to decrease CPU usage by a factor of two.
 
-##8.4 Real-world Deployments
+## 8.4 Real-world Deployments
 MillWheel powers a diverse set of internal Google systems. It performs streaming joins for a variety of Ads customers, many of whom require low latency updates to customer-visible dashboards. Billing pipelines depend on MillWheel’s exactly-once guarantees. Beyond Zeitgeist, MillWheel powers a generalized anomaly-detection service that is used as a turnkey solution by many different teams. Other deployments include network switch and cluster health moni- toring. MillWheel also powers user-facing tools like image panorama generation and image processing for Google Street View.  
 
 There are problems that MillWheel is poorly suited for. Mono- lithic operations that are inherently resistant to checkpointing are poor candidates for inclusion in computation code, since the sys- tem’s stability depends on dynamic load balancing. If the load bal- ancer encounters a hot spot that coincides with such an operation, it must choose to either interrupt the operation, forcing it to restart, or wait until it finishes. The former wastes resources, and the latter risks overloading a machine. As a distributed system, MillWheel does not perform well on problems that are not easily parallelized between different keys. If 90% of a pipeline’s traffic is assigned a single key, then one machine must handle 90% of the overall system load for that stream, which is clearly inadvisable. Compu- tation authors are advised to avoid keys that are high-traffic enough to bottleneck on a single machine (such as a customer’s language or user-agent string), or build a two-phase aggregator.  
@@ -322,7 +322,7 @@ If a computation is performing an aggregation based on low wa- termark timers, M
 
 
 
-##9.RELATED WORK
+## 9.RELATED WORK
 Our motivation for building a general abstraction for streaming systems was heavily influenced by the success seen by MapReduce [11] in transforming the world of batch processing, as illustrated by the widespread adoption of Apache Hadoop [4]. Comparing Mill- Wheel to existing models for streaming systems, such as Yahoo! S4 [26], Storm [23], and Sonora [32], we find that their models are insufficiently general for our desired class of problems. In par- ticular, S4 and Sonora do not address exactly-once processing and fault-tolerant persistent state, while Storm has only recently added such support through Trident [22], which imposes strict ordering requirements on transaction IDs in order to function. Logothetis, et al, make similar arguments for the necessity of first-class user state [20]. Ciel [25] targets general data processing problems, while dy- namically generating the dataflow graph. Like MapReduce Online [8], we see tremendous utility in making “early returns” available to the user. Google’s Percolator [27] also targets incremental updates to large datasets, but expects latencies on the order of minutes. 
 
 In evaluating our abstraction, we note that we fulfill the require- ments for a streaming system as enumerated by Stonebraker, et al [30]. Our flexibility toward out-of-order data is similar to the OOP approach [19], which makes compelling arguments for the necessity of a global low watermark calculation (rather than an operator-level one) and convincingly denies the viability of static slack values as a means of compensating for out-of-order data. While we appreciate the operator-specific unification of streaming and batch systems proposed by Spark Streaming [34], we believe that MillWheel addresses a more general set of problems, and that the microbatch model is not tenable without restricting users to pre-defined operators. Specifically, this model depends heavily on RDDs [33], which limit users to rollback-capable operators.  
@@ -333,5 +333,5 @@ Our low watermark mechanism parallels the punctuation [31] or heartbeats [16] us
 Much of the inspiration for streaming systems can be traced back to the pioneering work done on streaming database systems, such as TelegraphCQ [6], Aurora [2], and STREAM [24]. We observe similarities between components of our implementation and their counterparts in streaming SQL, such as the use of partitioned op- erators in Flux [28] for load balancing. While we believe our low watermark semantic to be more robust than the slack semantic in [2], we see some similarities between our concept of percentile low watermarks and the QoS system in [1].  
 
 
-##Acknowledgements
+## Acknowledgements
 We take this opportunity to thank the many people who have worked on the MillWheel project over the years, including Atul Adya, Alexan- der Amato, Grzegorz Czajkowski, Oliver Dain, Anthony Fedder- sen, Joseph Hellerstein, Tim Hollingsworth, and Zhengbo Zhou. This paper is the beneficiary of many comments and suggestions from numerous Googlers, including Atul Adya, Matt Austern, Craig Chambers, Ken Goldman, Sunghwan Ihm, Xiaozhou Li, Tudor Marian, Daniel Myers, Michael Piatek, and Jerry Zhao.
